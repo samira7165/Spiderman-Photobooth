@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model Template {
+  id             Int      @id
+  name           String
+  prompt         String   @db.Text
+  referenceImage String
+  isActive       Boolean  @default(true)
+  updatedAt      DateTime @updatedAt
+}
+
+model PhotoRequest {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String
+  hall        Int
+  templateId  Int
+  status      String   @default("queued") // queued | processing | completed | failed
+  code        String?  @unique
+  imageUrl    String?  @db.Text
+  qrCodeUrl   String?  @db.Text
+  errorMsg    String?  @db.Text
+  usedApi     String?  // gemini | openai
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
