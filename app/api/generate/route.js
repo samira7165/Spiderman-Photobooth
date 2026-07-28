@@ -25,8 +25,17 @@ import { nanoid } from "nanoid";
 // Open to any origin — callable from a separate frontend/domain.
 // =============================================================
 
-const PHOTO_DATA_URL = /^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/]+=*)$/;
+// Accepts ANY declared image subtype (jpeg, jpg, png, webp, avif, heic,
+// gif, pjpeg, ...) — browsers/OSes don't all agree on what to call a
+// given format, so we don't want to reject a valid photo just because
+// its declared MIME subtype isn't one we anticipated.
+const PHOTO_DATA_URL = /^data:image\/([a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/]+=*)$/;
 const BASE64_ONLY = /^[A-Za-z0-9+/]+=*$/;
+
+function normalizeExt(subtype) {
+  const s = subtype.toLowerCase();
+  return s === "jpg" || s === "pjpeg" ? "jpeg" : s;
+}
 
 function detectImageType(buffer) {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
@@ -60,8 +69,8 @@ function parsePhotoInput(rawPhoto) {
 
   const dataUrlMatch = rawPhoto.match(PHOTO_DATA_URL);
   if (dataUrlMatch) {
-    const [, ext, base64Data] = dataUrlMatch;
-    const mimeExt = ext === "jpg" ? "jpeg" : ext;
+    const [, subtype, base64Data] = dataUrlMatch;
+    const mimeExt = normalizeExt(subtype);
     return {
       buffer: Buffer.from(base64Data, "base64"),
       mimeExt,
