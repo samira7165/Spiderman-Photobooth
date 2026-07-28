@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getAllTemplates } from "@/lib/templates";
 import { seedTemplates } from "@/lib/seed-templates";
+import { withCors } from "@/lib/cors";
 
 // =============================================================
 // GET /api/templates
 // =============================================================
 // Returns list of available templates for the frontend to display.
+// Open to any origin — callable from a separate frontend/domain.
 // =============================================================
 
 export async function GET() {
@@ -20,5 +22,9 @@ export async function GET() {
     referenceImage: t.referenceImage,
   }));
 
-  return NextResponse.json(publicTemplates);
+  return withCors(NextResponse.json(publicTemplates));
+}
+
+export async function OPTIONS() {
+  return withCors(new NextResponse(null, { status: 204 }));
 }

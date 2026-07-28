@@ -57,12 +57,19 @@ export async function GET() {
       hall: true,
       templateId: true,
       code: true,
+      userPhotoUrl: true,
       imageUrl: true,
       qrCodeUrl: true,
       usedApi: true,
       createdAt: true,
     },
   });
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const recentPhotosWithUrl = recentPhotos.map((photo) => ({
+    ...photo,
+    viewerUrl: `${baseUrl}/view/${photo.code}`,
+  }));
 
   const queuedItems = await prisma.photoRequest.findMany({
     where: { status: { in: ["queued", "processing"] } },
@@ -83,7 +90,7 @@ export async function GET() {
     failed,
     byHall,
     byTemplate,
-    recentPhotos,
+    recentPhotos: recentPhotosWithUrl,
     queuedItems,
     templateNames,
   });
