@@ -55,7 +55,7 @@ function maskKey(key) {
   return `${key.slice(0, 4)}${"•".repeat(Math.max(4, key.length - 8))}${key.slice(-4)}`;
 }
 
-function resolveSlotForDisplay(provider, apiKey, model) {
+function resolveSlotForDisplay(provider, apiKey, model, modelFallback) {
   const resolvedProvider = provider || "gemini";
   const fallback = ENV_FALLBACK[resolvedProvider];
   const resolvedKey = apiKey || (fallback ? process.env[fallback.apiKeyEnv] : "") || "";
@@ -67,6 +67,7 @@ function resolveSlotForDisplay(provider, apiKey, model) {
     apiKeyMasked: maskKey(resolvedKey),
     apiKeySet: !!resolvedKey,
     model: resolvedModel,
+    modelFallback: modelFallback || "",
   };
 }
 
@@ -79,8 +80,8 @@ export async function GET() {
 
   return NextResponse.json({
     providers: SUPPORTED_PROVIDERS,
-    slot1: resolveSlotForDisplay(settings?.slot1Provider, settings?.slot1ApiKey, settings?.slot1Model),
-    slot2: resolveSlotForDisplay(settings?.slot2Provider || "openai", settings?.slot2ApiKey, settings?.slot2Model),
+    slot1: resolveSlotForDisplay(settings?.slot1Provider, settings?.slot1ApiKey, settings?.slot1Model, settings?.slot1ModelFallback),
+    slot2: resolveSlotForDisplay(settings?.slot2Provider || "openai", settings?.slot2ApiKey, settings?.slot2Model, settings?.slot2ModelFallback),
   });
 }
 
@@ -104,9 +105,11 @@ export async function PUT(request) {
   if (slot1?.provider) data.slot1Provider = slot1.provider;
   if (slot1?.apiKey) data.slot1ApiKey = slot1.apiKey;
   if (slot1?.model) data.slot1Model = slot1.model;
+  if (slot1?.modelFallback !== undefined) data.slot1ModelFallback = slot1.modelFallback || null;
   if (slot2?.provider) data.slot2Provider = slot2.provider;
   if (slot2?.apiKey) data.slot2ApiKey = slot2.apiKey;
   if (slot2?.model) data.slot2Model = slot2.model;
+  if (slot2?.modelFallback !== undefined) data.slot2ModelFallback = slot2.modelFallback || null;
 
   await prisma.apiSettings.upsert({
     where: { id: 1 },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { tryProcessNext } from "@/lib/queue";
 
 // =============================================================
 // GET /api/admin/stats
@@ -15,6 +16,12 @@ export async function GET() {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Keep the queue moving even when only the admin dashboard is polling
+  // (e.g. right after a regenerate, with no guest actively on /api/status)
+  tryProcessNext().catch((err) =>
+    console.error("[Stats] Queue process error:", err)
+  );
 
   const [total, completed, processing, queued, failed] = await Promise.all([
     prisma.photoRequest.count(),
@@ -47,7 +54,7 @@ export async function GET() {
   );
 
   const recentPhotos = await prisma.photoRequest.findMany({
-    where: { status: "completed" },
+    where: { status: { in: ["completed", "failed"] } },
     orderBy: { createdAt: "desc" },
     take: 20,
     select: {
@@ -56,10 +63,12 @@ export async function GET() {
       phone: true,
       hall: true,
       templateId: true,
+      status: true,
       code: true,
       userPhotoUrl: true,
       imageUrl: true,
       qrCodeUrl: true,
+      errorMsg: true,
       usedApi: true,
       createdAt: true,
     },
@@ -68,7 +77,7 @@ export async function GET() {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const recentPhotosWithUrl = recentPhotos.map((photo) => ({
     ...photo,
-    viewerUrl: `${baseUrl}/view/${photo.code}`,
+    viewerUrl: photo.code ? `${baseUrl}/view/${photo.code}` : null,
   }));
 
   const queuedItems = await prisma.photoRequest.findMany({

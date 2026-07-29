@@ -24,14 +24,16 @@ model Template {
 }
 
 model ApiSettings {
-  id            Int      @id @default(1)
-  slot1Provider String?  // "gemini" | "openai" — tried first
-  slot1ApiKey   String?  @db.Text
-  slot1Model    String?
-  slot2Provider String?  // tried if slot 1 fails
-  slot2ApiKey   String?  @db.Text
-  slot2Model    String?
-  updatedAt     DateTime @updatedAt
+  id                Int      @id @default(1)
+  slot1Provider     String?  // "gemini" | "openai" — tried first
+  slot1ApiKey       String?  @db.Text
+  slot1Model        String?
+  slot1ModelFallback String? // tried (same key) if slot1Model fails
+  slot2Provider     String?  // tried if slot 1 fails entirely
+  slot2ApiKey       String?  @db.Text
+  slot2Model        String?
+  slot2ModelFallback String? // tried (same key) if slot2Model fails
+  updatedAt         DateTime @updatedAt
 }
 
 model PhotoRequest {

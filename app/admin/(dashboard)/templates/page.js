@@ -7,6 +7,7 @@ export default function TemplatesPage() {
   const [templateSaved, setTemplateSaved] = useState({});
   const [templateSaving, setTemplateSaving] = useState({});
   const [uploadingRefId, setUploadingRefId] = useState(null);
+  const [deletingRefId, setDeletingRefId] = useState(null);
   const [uploadError, setUploadError] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -73,6 +74,44 @@ export default function TemplatesPage() {
     };
 
     reader.readAsDataURL(file);
+  }
+
+  async function handleDeleteReference(id) {
+    if (
+      !window.confirm(
+        "Delete this template's reference image? The template won't generate photos again until you upload a new one."
+      )
+    ) {
+      return;
+    }
+
+    setUploadError((prev) => ({ ...prev, [id]: "" }));
+    setDeletingRefId(id);
+
+    try {
+      const res = await fetch("/api/admin/templates/upload", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setUploadError((prev) => ({ ...prev, [id]: data.error || "Delete failed" }));
+        return;
+      }
+
+      setEditingTemplates((prev) =>
+        prev.map((tmpl) =>
+          tmpl.id === id ? { ...tmpl, referenceImage: "" } : tmpl
+        )
+      );
+    } catch (err) {
+      console.error("[Admin] Failed to delete reference image:", err);
+      setUploadError((prev) => ({ ...prev, [id]: "Delete failed. Try again." }));
+    } finally {
+      setDeletingRefId(null);
+    }
   }
 
   async function handleSaveTemplate(id) {
@@ -180,6 +219,16 @@ export default function TemplatesPage() {
                         }}
                       />
                     </label>
+                    {tmpl.referenceImage && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteReference(tmpl.id)}
+                        disabled={deletingRefId === tmpl.id}
+                        className="text-xs bg-[#1a1a1a] hover:bg-red-950/40 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed border border-[#2a2a2a] text-white px-3 py-2 rounded-lg transition-colors"
+                      >
+                        {deletingRefId === tmpl.id ? "..." : "🗑 Delete"}
+                      </button>
+                    )}
                   </div>
                   {uploadError[tmpl.id] && (
                     <p className="text-red-400 text-xs mb-2">{uploadError[tmpl.id]}</p>

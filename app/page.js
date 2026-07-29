@@ -13,6 +13,39 @@ import { useEffect, useRef, useState } from "react";
 // halls can run simultaneously against one shared backend.
 // =============================================================
 
+function MagneticButton({ children, className, strength = 0.25, ...props }) {
+  const ref = useRef(null);
+
+  function handleMouseMove(e) {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - (rect.left + rect.width / 2);
+    const y = e.clientY - (rect.top + rect.height / 2);
+    el.style.transition = "transform 0.1s ease-out";
+    el.style.transform = `translate(${x * strength}px, ${y * strength}px)`;
+  }
+
+  function handleMouseLeave() {
+    const el = ref.current;
+    if (!el) return;
+    el.style.transition = "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)";
+    el.style.transform = "translate(0px, 0px)";
+  }
+
+  return (
+    <button
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className={className}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
 export default function Home() {
   const [step, setStep] = useState("form");
   const [templates, setTemplates] = useState([]);
@@ -189,95 +222,137 @@ export default function Home() {
 
   const canProceedToCamera = name.trim() && phone.trim() && templateId && hall;
 
+  const isProcessing = step === "waiting" && queueStatus === "processing";
+
+  const selectedTemplate = templates.find((t) => t.id === templateId);
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center px-4 py-10">
-      <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold">🕷️ Spiderman Photobooth</h1>
-        <p className="text-sm text-[#8a8a8a] mt-1">
+    <div className="pb-shell">
+      <div
+        className="fixed inset-0 -z-20 bg-cover bg-center"
+        style={{ backgroundImage: "url(/spidy2.jpg)" }}
+      />
+      <div
+        className={`fixed inset-0 -z-10 transition-colors duration-700 ${
+          isProcessing ? "bg-red-950/45" : "bg-[#0a0a0a]/25"
+        }`}
+      />
+
+      <div className="pb-header">
+        <img
+          src="/spider_man_4_brand_new_day_.png"
+          alt="Spiderman Photobooth"
+          className="pb-logo"
+        />
+        <p className="pb-tagline">
           Take a photo, pick a suit, become Spider-Man
         </p>
       </div>
 
-      <div className="w-full max-w-md">
+      <div className="pb-content w-full portrait:w-[92vw] portrait:max-w-4xl landscape:max-w-md landscape:md:max-w-2xl landscape:lg:max-w-3xl">
         {step === "form" && hallChecked && !hall && (
-          <div className="bg-red-950/40 border border-red-900/50 text-red-400 text-sm rounded-xl p-4 mb-5">
+          <div className="pb-banner bg-red-950/40 border border-red-900/50 text-red-400 text-sm rounded-xl p-3">
             This booth isn&apos;t configured — open it with a hall in the
             URL, e.g. <span className="font-mono">?hall=1</span>.
           </div>
         )}
 
         {step === "form" && (
-          <div className="space-y-5">
-            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-5 space-y-4">
+          <div className="pb-form">
+            <div className="pb-fields">
               <div>
-                <label className="block text-xs text-[#8a8a8a] mb-1">Name</label>
+                <label className="pb-field-label">Name</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Your name"
-                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white placeholder-[#555] focus:outline-none focus:ring-2 focus:ring-red-900/50 focus:border-red-800 transition-colors"
+                  className="pb-input"
                 />
               </div>
               <div>
-                <label className="block text-xs text-[#8a8a8a] mb-1">Phone</label>
+                <label className="pb-field-label">Phone</label>
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Your phone number"
-                  className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white placeholder-[#555] focus:outline-none focus:ring-2 focus:ring-red-900/50 focus:border-red-800 transition-colors"
+                  className="pb-input"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs text-[#8a8a8a] mb-2 px-1">
-                Choose a template
-              </label>
-              <div className="grid grid-cols-2 gap-3">
+            <label className="pb-grid-label">Choose a template</label>
+            <div className="pb-grid-wrap">
+              <div className="pb-grid">
                 {templates.map((t) => (
-                  <button
+                  <MagneticButton
                     key={t.id}
                     type="button"
+                    strength={0.15}
                     onClick={() => setTemplateId(t.id)}
-                    className={`rounded-xl overflow-hidden border transition-colors text-left ${
-                      templateId === t.id
-                        ? "border-red-800 ring-2 ring-red-900/50"
-                        : "border-[#2a2a2a] hover:border-[#3a3a3a]"
+                    className={`pb-cell ${
+                      templateId === t.id ? "pb-cell-selected" : ""
                     }`}
                   >
-                    <div className="aspect-square bg-[#141414] flex items-center justify-center overflow-hidden">
-                      <img
-                        src={t.referenceImage}
-                        alt={t.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.style.display = "none";
-                        }}
-                      />
-                    </div>
-                    <div className="px-2 py-1.5 bg-[#141414] text-xs text-white truncate">
-                      {t.name}
-                    </div>
-                  </button>
+                    <img
+                      src={t.referenceImage}
+                      alt={t.name}
+                      className="pb-cell-img"
+                      onError={(e) => {
+                        e.target.style.display = "none";
+                      }}
+                    />
+                  </MagneticButton>
                 ))}
               </div>
             </div>
 
-            <button
+            <MagneticButton
               type="button"
               disabled={!canProceedToCamera}
-              onClick={startCamera}
-              className="w-full bg-red-900 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
+              onClick={() => setStep("preview")}
+              className="pb-cta"
             >
-              Next: Take Photo
-            </button>
+              Next: Take Photo <span aria-hidden="true">→</span>
+            </MagneticButton>
+          </div>
+        )}
+
+        {step === "preview" && selectedTemplate && (
+          <div className="pb-scroll space-y-4 mx-auto w-full landscape:max-w-xs portrait:max-w-md">
+            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl overflow-hidden aspect-[4/5] max-h-[60vh]">
+              <img
+                src={selectedTemplate.referenceImage}
+                alt={selectedTemplate.name}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <p className="text-center text-white font-medium">
+              {selectedTemplate.name}
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setStep("form")}
+                className="flex-1 bg-[#1a1a1a] hover:bg-[#242424] border border-[#2a2a2a] text-white text-sm font-medium py-3 rounded-xl transition-colors"
+              >
+                ← Back
+              </button>
+              <MagneticButton
+                type="button"
+                onClick={startCamera}
+                className="flex-1 bg-gradient-to-r from-red-700 to-red-500 hover:from-red-600 hover:to-red-400 text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                Confirm
+              </MagneticButton>
+            </div>
           </div>
         )}
 
         {step === "camera" && (
-          <div className="space-y-4">
+          <div className="pb-scroll space-y-4">
             <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl overflow-hidden aspect-square flex items-center justify-center">
               {cameraError ? (
                 <p className="text-[#8a8a8a] text-sm text-center px-6">
@@ -295,12 +370,12 @@ export default function Home() {
             </div>
 
             {!cameraError && (
-              <button
+              <MagneticButton
                 onClick={capturePhoto}
                 className="w-full bg-red-900 hover:bg-red-800 text-white font-semibold py-3 rounded-xl transition-colors"
               >
                 Capture
-              </button>
+              </MagneticButton>
             )}
 
             <label className="block cursor-pointer text-center bg-[#1a1a1a] hover:bg-[#242424] border border-[#2a2a2a] text-white text-sm font-medium py-3 rounded-xl transition-colors">
@@ -326,20 +401,20 @@ export default function Home() {
         )}
 
         {step === "review" && photo && (
-          <div className="space-y-4">
+          <div className="pb-scroll space-y-4">
             <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl overflow-hidden aspect-square">
               <img src={photo} alt="Captured" className="w-full h-full object-cover" />
             </div>
 
             {error && <p className="text-red-400 text-sm text-center">{error}</p>}
 
-            <button
+            <MagneticButton
               onClick={handleSubmit}
               disabled={submitting}
               className="w-full bg-red-900 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
             >
               {submitting ? "Submitting..." : "Looks Good, Submit"}
-            </button>
+            </MagneticButton>
             <button
               onClick={retake}
               className="w-full bg-[#1a1a1a] hover:bg-[#242424] border border-[#2a2a2a] text-white text-sm font-medium py-3 rounded-xl transition-colors"
@@ -350,24 +425,49 @@ export default function Home() {
         )}
 
         {step === "waiting" && (
-          <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-8 text-center space-y-3">
-            <div className="w-10 h-10 mx-auto rounded-full border-2 border-red-900 border-t-transparent animate-spin" />
-            <p className="text-white font-medium">
-              {queueStatus === "processing"
-                ? "Generating your Spider-Man photo..."
+          <div className="pb-scroll rounded-2xl p-6 sm:p-8 text-center space-y-4 border transition-colors duration-700 bg-gradient-to-br from-red-950 via-[#2a0808] to-black border-red-900">
+            <div className="relative mx-auto" style={{ width: 240, height: 78, maxWidth: "100%" }}>
+              <svg
+                viewBox="0 0 240 78"
+                width="240"
+                height="78"
+                className="absolute inset-0"
+              >
+                <path
+                  d="M8,39 C42,5 78,73 118,39 C158,5 194,73 232,39"
+                  stroke="#7a1f1f"
+                  strokeWidth="2"
+                  strokeDasharray="5 6"
+                  fill="none"
+                />
+              </svg>
+              <div className="spider-crawler text-2xl sm:text-3xl">🕷️</div>
+            </div>
+            <div className="flex items-end justify-center gap-1.5 h-6">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="loading-block w-3 h-full rounded-sm"
+                  style={{ animationDelay: `${i * 0.12}s` }}
+                />
+              ))}
+            </div>
+            <p className="text-white font-semibold text-lg">
+              {isProcessing
+                ? "Your picture is almost loading..."
                 : "Waiting in the queue..."}
             </p>
-            {queueStatus !== "processing" && queuePosition != null && (
-              <p className="text-[#8a8a8a] text-sm">
+            {!isProcessing && queuePosition != null && (
+              <p className="text-[#c98a8a] text-sm">
                 Position in queue: #{queuePosition}
               </p>
             )}
-            <p className="text-[#6a6a6a] text-xs">Request ID: {requestId}</p>
+            <p className="text-[#c98a8a]/70 text-xs">Request ID: {requestId}</p>
           </div>
         )}
 
         {step === "done" && result && (
-          <div className="space-y-4">
+          <div className="pb-scroll space-y-4">
             <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl overflow-hidden">
               <img src={result.imageUrl} alt="Your Spiderman photo" className="w-full h-auto" />
             </div>
@@ -395,27 +495,27 @@ export default function Home() {
               </div>
             </div>
 
-            <button
+            <MagneticButton
               onClick={startOver}
               className="w-full bg-red-900 hover:bg-red-800 text-white font-semibold py-3 rounded-xl transition-colors"
             >
               Take Another Photo
-            </button>
+            </MagneticButton>
           </div>
         )}
 
         {step === "failed" && (
-          <div className="space-y-4">
+          <div className="pb-scroll space-y-4">
             <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl p-6 text-center">
               <p className="text-red-400 font-medium mb-1">Generation failed</p>
               <p className="text-[#8a8a8a] text-xs">{error}</p>
             </div>
-            <button
+            <MagneticButton
               onClick={startOver}
               className="w-full bg-red-900 hover:bg-red-800 text-white font-semibold py-3 rounded-xl transition-colors"
             >
               Start Over
-            </button>
+            </MagneticButton>
           </div>
         )}
       </div>

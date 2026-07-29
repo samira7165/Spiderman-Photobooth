@@ -50,8 +50,22 @@ function SlotForm({ title, slot, onChange, onSave, saving, saved, error }) {
         type="text"
         value={slot.model}
         onChange={(e) => onChange("model", e.target.value)}
+        className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white placeholder-[#555] focus:outline-none focus:ring-2 focus:ring-red-900/50 focus:border-red-800 transition-colors mb-3"
+      />
+
+      <label className="block text-xs text-[#8a8a8a] mb-1">
+        Fallback Model <span className="text-[#5a5a5a]">(optional)</span>
+      </label>
+      <input
+        type="text"
+        value={slot.modelFallback}
+        onChange={(e) => onChange("modelFallback", e.target.value)}
+        placeholder="e.g. an older/alternate model to retry with the same key"
         className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white placeholder-[#555] focus:outline-none focus:ring-2 focus:ring-red-900/50 focus:border-red-800 transition-colors"
       />
+      <p className="text-[10px] text-[#5a5a5a] mt-1 mb-3">
+        Tried automatically, with this same key, if the model above fails.
+      </p>
 
       {error && <p className="text-red-400 text-xs mt-3">{error}</p>}
       {saved && <p className="text-green-500 text-xs mt-3">Saved!</p>}
@@ -67,7 +81,7 @@ function SlotForm({ title, slot, onChange, onSave, saving, saved, error }) {
   );
 }
 
-const EMPTY_SLOT = { provider: "gemini", apiKeyMasked: "", apiKeySet: false, model: "", apiKeyInput: "" };
+const EMPTY_SLOT = { provider: "gemini", apiKeyMasked: "", apiKeySet: false, model: "", modelFallback: "", apiKeyInput: "" };
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -119,6 +133,7 @@ export default function SettingsPage() {
             provider: slot.provider,
             apiKey: slot.apiKeyInput || undefined,
             model: slot.model || undefined,
+            modelFallback: slot.modelFallback,
           },
         }),
       });
@@ -174,9 +189,10 @@ export default function SettingsPage() {
         </h3>
         <p className="text-xs text-[#6a6a6a]">
           API Key 1 is tried first for every photo; API Key 2 is the
-          fallback if it fails. Pick which provider backs each slot.
-          Changes apply immediately — no restart needed. Leave the key
-          field blank to keep the current one.
+          fallback if it fails. Within each key, its Fallback Model is
+          retried automatically before moving to the other key. Changes
+          apply immediately — no restart needed. Leave the key field
+          blank to keep the current one.
         </p>
       </div>
 

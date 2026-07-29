@@ -9,6 +9,8 @@ export default function PhotosPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState(null);
+  const [regeneratingId, setRegeneratingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const pollRef = useRef(null);
 
   useEffect(() => {
@@ -43,6 +45,50 @@ export default function PhotosPage() {
     }
   }
 
+  async function handleRegenerate(photo) {
+    setRegeneratingId(photo.id);
+    try {
+      const res = await fetch(`/api/admin/photos/${photo.id}/regenerate`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        // Re-queued — it'll naturally move to the Queue page and drop
+        // off this list once processing starts on the next poll.
+        setStats((prev) =>
+          prev
+            ? { ...prev, recentPhotos: prev.recentPhotos.filter((p) => p.id !== photo.id) }
+            : prev
+        );
+      }
+    } catch (err) {
+      console.error("[Admin] Failed to regenerate:", err);
+    } finally {
+      setRegeneratingId(null);
+    }
+  }
+
+  async function handleDelete(photo) {
+    if (!window.confirm(`Delete this photo request for "${photo.name}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(photo.id);
+    try {
+      const res = await fetch(`/api/admin/photos/${photo.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setStats((prev) =>
+          prev
+            ? { ...prev, recentPhotos: prev.recentPhotos.filter((p) => p.id !== photo.id) }
+            : prev
+        );
+      }
+    } catch (err) {
+      console.error("[Admin] Failed to delete:", err);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   if (loading) {
     return <div className="text-[#8a8a8a]">Loading photos...</div>;
   }
@@ -56,6 +102,7 @@ export default function PhotosPage() {
     "Original",
     "Generated",
     "Name",
+    "Status",
     "URL",
     "Code",
     "Phone",
@@ -63,7 +110,7 @@ export default function PhotosPage() {
     "Template",
     "API",
     "Created",
-    "Download",
+    "Actions",
   ];
 
   return (
@@ -74,7 +121,7 @@ export default function PhotosPage() {
 
       {stats.recentPhotos.length === 0 ? (
         <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl px-6 py-10 text-center text-[#6a6a6a] text-sm">
-          No completed photos yet
+          No photos yet
         </div>
       ) : (
         <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl overflow-hidden">
@@ -95,98 +142,138 @@ export default function PhotosPage() {
                 </tr>
               </thead>
               <tbody>
-                {stats.recentPhotos.map((photo, i) => (
-                  <tr
-                    key={photo.id}
-                    className={`hover:bg-[#1e1e1e] transition-colors ${
-                      i % 2 === 1 ? "bg-[#111111]" : ""
-                    }`}
-                  >
-                    <td className="px-3 py-2 border-b border-[#1f1f1f] text-[#6a6a6a]">
-                      {i + 1}
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f]">
-                      {photo.userPhotoUrl ? (
-                        <a href={photo.userPhotoUrl} target="_blank" rel="noopener noreferrer">
-                          <img
-                            src={photo.userPhotoUrl}
-                            alt={`${photo.name} — original`}
-                            className="w-10 h-10 rounded-lg object-cover border border-[#2a2a2a]"
-                          />
-                        </a>
-                      ) : (
-                        <span className="text-[#4a4a4a] text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f]">
-                      <a href={photo.imageUrl} target="_blank" rel="noopener noreferrer">
-                        <img
-                          src={photo.imageUrl}
-                          alt={`${photo.name} — generated`}
-                          className="w-10 h-10 rounded-lg object-cover border border-[#2a2a2a]"
-                        />
-                      </a>
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-white whitespace-nowrap">
-                      {photo.name}
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f]">
-                      <div className="flex items-center gap-2 min-w-[180px]">
-                        <a
-                          href={photo.viewerUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-red-400 hover:text-red-300 text-xs underline underline-offset-2 truncate max-w-[160px]"
-                          title={photo.viewerUrl}
-                        >
-                          {photo.viewerUrl}
-                        </a>
-                        <button
-                          onClick={() => handleCopyUrl(photo)}
-                          className="text-[10px] shrink-0 bg-[#1a1a1a] hover:bg-[#242424] border border-[#2a2a2a] text-white px-1.5 py-0.5 rounded transition-colors"
-                        >
-                          {copiedId === photo.id ? "Copied!" : "Copy"}
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f] font-mono text-red-400 text-xs whitespace-nowrap">
-                      {photo.code}
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#a0a0a0] whitespace-nowrap">
-                      {photo.phone}
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#a0a0a0] whitespace-nowrap">
-                      Hall {photo.hall}
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#a0a0a0] whitespace-nowrap">
-                      {templateName(photo.templateId, stats.templateNames)}
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#6a6a6a] text-xs whitespace-nowrap">
-                      {photo.usedApi || "—"}
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#6a6a6a] text-xs whitespace-nowrap">
-                      {new Date(photo.createdAt).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 border-b border-l border-[#1f1f1f]">
-                      <div className="flex gap-1.5">
-                        {photo.userPhotoUrl && (
-                          <a
-                            href={`/api/admin/download?url=${encodeURIComponent(photo.userPhotoUrl)}&filename=${photo.code}-original.jpg`}
-                            className="text-xs bg-[#1a1a1a] hover:bg-[#242424] border border-[#2a2a2a] text-white px-2 py-1 rounded-lg transition-colors whitespace-nowrap"
-                          >
-                            ⇩ Org
+                {stats.recentPhotos.map((photo, i) => {
+                  const isFailed = photo.status === "failed";
+                  return (
+                    <tr
+                      key={photo.id}
+                      className={`hover:bg-[#1e1e1e] transition-colors ${
+                        i % 2 === 1 ? "bg-[#111111]" : ""
+                      }`}
+                    >
+                      <td className="px-3 py-2 border-b border-[#1f1f1f] text-[#6a6a6a]">
+                        {i + 1}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f]">
+                        {photo.userPhotoUrl ? (
+                          <a href={photo.userPhotoUrl} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={photo.userPhotoUrl}
+                              alt={`${photo.name} — original`}
+                              className="w-10 h-10 rounded-lg object-cover border border-[#2a2a2a]"
+                            />
                           </a>
+                        ) : (
+                          <span className="text-[#4a4a4a] text-xs">—</span>
                         )}
-                        <a
-                          href={`/api/admin/download?url=${encodeURIComponent(photo.imageUrl)}&filename=${photo.code}.png`}
-                          className="text-xs bg-red-900 hover:bg-red-800 text-white px-2 py-1 rounded-lg transition-colors whitespace-nowrap"
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f]">
+                        {photo.imageUrl ? (
+                          <a href={photo.imageUrl} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={photo.imageUrl}
+                              alt={`${photo.name} — generated`}
+                              className="w-10 h-10 rounded-lg object-cover border border-[#2a2a2a]"
+                            />
+                          </a>
+                        ) : (
+                          <span className="text-[#4a4a4a] text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-white whitespace-nowrap">
+                        {photo.name}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f]">
+                        <span
+                          className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${
+                            isFailed
+                              ? "bg-red-950/40 text-red-400"
+                              : "bg-green-500/10 text-green-500"
+                          }`}
+                          title={isFailed ? photo.errorMsg || "" : ""}
                         >
-                          ⇩ Gen
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {isFailed ? "Failed" : "Completed"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f]">
+                        {photo.viewerUrl ? (
+                          <div className="flex items-center gap-2 min-w-[180px]">
+                            <a
+                              href={photo.viewerUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-red-400 hover:text-red-300 text-xs underline underline-offset-2 truncate max-w-[160px]"
+                              title={photo.viewerUrl}
+                            >
+                              {photo.viewerUrl}
+                            </a>
+                            <button
+                              onClick={() => handleCopyUrl(photo)}
+                              className="text-[10px] shrink-0 bg-[#1a1a1a] hover:bg-[#242424] border border-[#2a2a2a] text-white px-1.5 py-0.5 rounded transition-colors"
+                            >
+                              {copiedId === photo.id ? "Copied!" : "Copy"}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[#4a4a4a] text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f] font-mono text-red-400 text-xs whitespace-nowrap">
+                        {photo.code || "—"}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#a0a0a0] whitespace-nowrap">
+                        {photo.phone}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#a0a0a0] whitespace-nowrap">
+                        Hall {photo.hall}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#a0a0a0] whitespace-nowrap">
+                        {templateName(photo.templateId, stats.templateNames)}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#6a6a6a] text-xs whitespace-nowrap">
+                        {photo.usedApi || "—"}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f] text-[#6a6a6a] text-xs whitespace-nowrap">
+                        {new Date(photo.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 border-b border-l border-[#1f1f1f]">
+                        <div className="flex gap-1.5">
+                          {photo.userPhotoUrl && (
+                            <a
+                              href={`/api/admin/download?url=${encodeURIComponent(photo.userPhotoUrl)}&filename=${photo.code || photo.id}-original.jpg`}
+                              className="text-xs bg-[#1a1a1a] hover:bg-[#242424] border border-[#2a2a2a] text-white px-2 py-1 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              ⇩ Org
+                            </a>
+                          )}
+                          {isFailed ? (
+                            <button
+                              onClick={() => handleRegenerate(photo)}
+                              disabled={regeneratingId === photo.id}
+                              className="text-xs bg-red-900 hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed text-white px-2 py-1 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              {regeneratingId === photo.id ? "..." : "↻ Regenerate"}
+                            </button>
+                          ) : (
+                            <a
+                              href={`/api/admin/download?url=${encodeURIComponent(photo.imageUrl)}&filename=${photo.code}.png`}
+                              className="text-xs bg-red-900 hover:bg-red-800 text-white px-2 py-1 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              ⇩ Gen
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleDelete(photo)}
+                            disabled={deletingId === photo.id}
+                            className="text-xs bg-[#1a1a1a] hover:bg-red-950/40 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed border border-[#2a2a2a] text-white px-2 py-1 rounded-lg transition-colors whitespace-nowrap"
+                          >
+                            {deletingId === photo.id ? "..." : "🗑 Delete"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
