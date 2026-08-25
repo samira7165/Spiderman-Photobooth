@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { saveFile, deleteFile } from "@/lib/storage";
+import { detectImageFormat } from "@/lib/image-format";
 
 // =============================================================
 // POST /api/admin/templates/upload
@@ -19,7 +20,7 @@ import { saveFile, deleteFile } from "@/lib/storage";
 // generation again until a new reference image is uploaded.
 // =============================================================
 
-const IMAGE_DATA_URL = /^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/]+=*)$/;
+const IMAGE_DATA_URL = /^data:image\/[a-z0-9.+-]+;base64,([A-Za-z0-9+/]+=*)$/i;
 
 export async function POST(request) {
   if (!(await isAdminAuthenticated())) {
@@ -43,14 +44,25 @@ export async function POST(request) {
     );
   }
 
-  const [, ext, base64Data] = match;
-  const mimeExt = ext === "jpg" ? "jpeg" : ext;
-  const buffer = Buffer.from(base64Data, "base64");
+  const buffer = Buffer.from(match[1], "base64");
+
+  // The declared subtype in the data URL prefix is client-supplied and not
+  // always accurate. Vercel Blob serves files with
+  // X-Content-Type-Options: nosniff, so a stored file whose Content-Type
+  // doesn't match its real bytes fails to render in browsers at all —
+  // detecting the actual format here guarantees they always match.
+  const format = detectImageFormat(buffer);
+  if (!format) {
+    return NextResponse.json(
+      { error: "Uploaded file is not a valid PNG, JPEG, or WEBP image" },
+      { status: 400 }
+    );
+  }
 
   const referenceImage = await saveFile(
-    `template-${id}-reference.${mimeExt}`,
+    `template-${id}-reference.${format.ext}`,
     buffer,
-    `image/${mimeExt}`
+    format.mimeType
   );
 
   const updated = await prisma.template.update({

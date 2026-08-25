@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { saveFile } from "@/lib/storage";
 import { withCors } from "@/lib/cors";
 import { nanoid } from "nanoid";
+import { detectImageFormat } from "@/lib/image-format";
 
 // =============================================================
 // POST /api/generate
@@ -37,29 +38,6 @@ function normalizeExt(subtype) {
   return s === "jpg" || s === "pjpeg" ? "jpeg" : s;
 }
 
-function detectImageType(buffer) {
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
-    return { ext: "jpeg", mimeType: "image/jpeg" };
-  }
-  if (
-    buffer.length >= 8 &&
-    buffer[0] === 0x89 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x4e &&
-    buffer[3] === 0x47
-  ) {
-    return { ext: "png", mimeType: "image/png" };
-  }
-  if (
-    buffer.length >= 12 &&
-    buffer.toString("ascii", 0, 4) === "RIFF" &&
-    buffer.toString("ascii", 8, 12) === "WEBP"
-  ) {
-    return { ext: "webp", mimeType: "image/webp" };
-  }
-  return null;
-}
-
 /**
  * Accepts either a full data URL or a raw base64 string.
  * Returns { buffer, mimeExt, mimeType } or null if invalid.
@@ -70,11 +48,22 @@ function parsePhotoInput(rawPhoto) {
   const dataUrlMatch = rawPhoto.match(PHOTO_DATA_URL);
   if (dataUrlMatch) {
     const [, subtype, base64Data] = dataUrlMatch;
-    const mimeExt = normalizeExt(subtype);
+    const buffer = Buffer.from(base64Data, "base64");
+
+    // The declared subtype is client-supplied and not always accurate
+    // (a mislabeled file, or a caller on another domain — this endpoint
+    // is open to any origin). Vercel Blob serves files with
+    // X-Content-Type-Options: nosniff, so a mismatched Content-Type makes
+    // the saved photo fail to render anywhere it's displayed, rather than
+    // browsers just sniffing the real format — detect it from the bytes
+    // and only fall back to the declared subtype for formats (heic, avif,
+    // gif, ...) this detector doesn't recognize.
+    const detected = detectImageFormat(buffer);
+    const mimeExt = detected ? detected.ext : normalizeExt(subtype);
     return {
-      buffer: Buffer.from(base64Data, "base64"),
+      buffer,
       mimeExt,
-      mimeType: `image/${mimeExt}`,
+      mimeType: detected ? detected.mimeType : `image/${mimeExt}`,
     };
   }
 
@@ -82,7 +71,7 @@ function parsePhotoInput(rawPhoto) {
   if (!BASE64_ONLY.test(cleaned)) return null;
 
   const buffer = Buffer.from(cleaned, "base64");
-  const detected = detectImageType(buffer);
+  const detected = detectImageFormat(buffer);
   if (!detected) return null;
 
   return { buffer, mimeExt: detected.ext, mimeType: detected.mimeType };
