@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import prisma from "@/lib/prisma";
 import { tryProcessNext, getQueuePosition } from "@/lib/queue";
 import { withCors } from "@/lib/cors";
@@ -57,10 +57,18 @@ export async function GET(request, { params }) {
       );
     }
 
-    // If queued or processing, try to kick off processing
-    // This is non-blocking — it fires and we return status immediately
-    tryProcessNext().catch((err) =>
-      console.error("[Status] Queue process error:", err)
+    // If queued or processing, try to kick off processing. This must not
+    // block the response, but a bare unawaited call here isn't safe on
+    // Vercel — a serverless invocation can be frozen the moment the
+    // response is sent, silently killing the AI call mid-flight and
+    // leaving the job stuck in "processing" forever (which then blocks
+    // the whole queue, since MAX_CONCURRENT sees it as still running).
+    // after() extends the invocation's lifetime via Vercel's waitUntil so
+    // this actually finishes, while still returning the response now.
+    after(() =>
+      tryProcessNext().catch((err) =>
+        console.error("[Status] Queue process error:", err)
+      )
     );
 
     // Get queue position
