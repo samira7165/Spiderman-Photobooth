@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resizeImageToDataUrl } from "@/lib/client-image";
 
 export default function TemplatesPage() {
   const [editingTemplates, setEditingTemplates] = useState([]);
@@ -35,45 +36,47 @@ export default function TemplatesPage() {
     );
   }
 
-  function handleReferenceUpload(id, file) {
+  async function handleReferenceUpload(id, file) {
     setUploadError((prev) => ({ ...prev, [id]: "" }));
-    const reader = new FileReader();
+    setUploadingRefId(id);
 
-    reader.onload = async () => {
-      setUploadingRefId(id);
-      try {
-        const res = await fetch("/api/admin/templates/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, image: reader.result }),
-        });
-        const data = await res.json();
+    try {
+      // Downscaled client-side before upload — an unresized photo (commonly
+      // several MB) exceeds Vercel's 4.5MB serverless function body limit
+      // once base64-encoded, and gets rejected outright. A reference image
+      // is just a style guide for the AI prompt, so this doesn't need to be
+      // anywhere near full resolution.
+      const dataUrl = await resizeImageToDataUrl(file, 1600, 0.85);
 
-        if (!res.ok) {
-          setUploadError((prev) => ({ ...prev, [id]: data.error || "Upload failed" }));
-          return;
-        }
+      const res = await fetch("/api/admin/templates/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, image: dataUrl }),
+      });
+      const data = await res.json();
 
-        setEditingTemplates((prev) =>
-          prev.map((tmpl) =>
-            tmpl.id === id
-              ? { ...tmpl, referenceImage: data.template.referenceImage }
-              : tmpl
-          )
-        );
-        setTemplateSaved((prev) => ({ ...prev, [id]: true }));
-        setTimeout(() => {
-          setTemplateSaved((prev) => ({ ...prev, [id]: false }));
-        }, 2000);
-      } catch (err) {
-        console.error("[Admin] Failed to upload reference image:", err);
-        setUploadError((prev) => ({ ...prev, [id]: "Upload failed. Try again." }));
-      } finally {
-        setUploadingRefId(null);
+      if (!res.ok) {
+        setUploadError((prev) => ({ ...prev, [id]: data.error || "Upload failed" }));
+        return;
       }
-    };
 
-    reader.readAsDataURL(file);
+      setEditingTemplates((prev) =>
+        prev.map((tmpl) =>
+          tmpl.id === id
+            ? { ...tmpl, referenceImage: data.template.referenceImage }
+            : tmpl
+        )
+      );
+      setTemplateSaved((prev) => ({ ...prev, [id]: true }));
+      setTimeout(() => {
+        setTemplateSaved((prev) => ({ ...prev, [id]: false }));
+      }, 2000);
+    } catch (err) {
+      console.error("[Admin] Failed to upload reference image:", err);
+      setUploadError((prev) => ({ ...prev, [id]: "Upload failed. Try again." }));
+    } finally {
+      setUploadingRefId(null);
+    }
   }
 
   async function handleDeleteReference(id) {

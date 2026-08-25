@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { resizeImageToDataUrl } from "@/lib/client-image";
 
 // =============================================================
 // GUEST BOOTH PAGE (for testing the full pipeline)
@@ -126,17 +127,22 @@ export default function Home() {
     setStep("review");
   }
 
-  function handleFileUpload(e) {
+  async function handleFileUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPhoto(reader.result);
+    try {
+      // Downscaled client-side before upload — an unresized phone photo
+      // (commonly 3-8MB) exceeds Vercel's 4.5MB serverless function body
+      // limit once base64-encoded, and gets rejected outright.
+      const dataUrl = await resizeImageToDataUrl(file, 2000, 0.9);
+      setPhoto(dataUrl);
       stopCamera();
       setStep("review");
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("File upload error:", err);
+      setCameraError("Could not read that photo. Try a different file.");
+    }
   }
 
   function retake() {
