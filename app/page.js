@@ -57,6 +57,8 @@ export default function Home() {
   const [templateId, setTemplateId] = useState(null);
   const [photo, setPhoto] = useState(null);
   const [cameraError, setCameraError] = useState("");
+  const [facingMode, setFacingMode] = useState("user"); // 'user' = front, 'environment' = back
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
   const [requestId, setRequestId] = useState(null);
   const [queuePosition, setQueuePosition] = useState(null);
   const [queueStatus, setQueueStatus] = useState(null);
@@ -91,15 +93,47 @@ export default function Home() {
     return () => clearInterval(pollRef.current);
   }, []);
 
-  async function startCamera() {
+  // Only relevant on the device the booth actually runs on (phone/tablet) —
+  // desktops with a single (or no) webcam just never see the switch button.
+  useEffect(() => {
+    navigator.mediaDevices?.enumerateDevices?.()
+      .then((devices) => {
+        const videoInputs = devices.filter((d) => d.kind === "videoinput");
+        setHasMultipleCameras(videoInputs.length > 1);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function startCamera(facing = facingMode) {
     setCameraError("");
     setStep("camera");
+
+    // getUserMedia is only exposed in secure contexts (HTTPS or localhost) —
+    // on plain HTTP it's simply undefined, so this gives a specific,
+    // actionable message instead of a confusing generic failure.
+    if (
+      window.location.protocol === "http:" &&
+      window.location.hostname !== "localhost"
+    ) {
+      setCameraError(
+        "Camera requires HTTPS. Please access this page via https:// or localhost."
+      );
+      return;
+    }
+
+    stopCamera();
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
+        video: {
+          facingMode: facing,
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
       });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
+      setFacingMode(facing);
     } catch (err) {
       console.error("Camera error:", err);
       setCameraError(
@@ -111,6 +145,10 @@ export default function Home() {
   function stopCamera() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+  }
+
+  function switchCamera() {
+    startCamera(facingMode === "user" ? "environment" : "user");
   }
 
   function capturePhoto() {
@@ -348,7 +386,7 @@ export default function Home() {
               </button>
               <MagneticButton
                 type="button"
-                onClick={startCamera}
+                onClick={() => startCamera()}
                 className="flex-1 bg-gradient-to-r from-red-700 to-red-500 hover:from-red-600 hover:to-red-400 text-white font-semibold py-3 rounded-xl transition-colors"
               >
                 Confirm
@@ -359,19 +397,42 @@ export default function Home() {
 
         {step === "camera" && (
           <div className="pb-scroll space-y-4">
-            <div className="bg-[#141414] border border-[#2a2a2a] rounded-2xl overflow-hidden aspect-square flex items-center justify-center">
+            <div className="relative bg-[#141414] border border-[#2a2a2a] rounded-2xl overflow-hidden aspect-square flex items-center justify-center">
               {cameraError ? (
                 <p className="text-[#8a8a8a] text-sm text-center px-6">
                   {cameraError}
                 </p>
               ) : (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover scale-x-[-1]"
-                />
+                <>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className={`w-full h-full object-cover ${
+                      facingMode === "user" ? "scale-x-[-1]" : ""
+                    }`}
+                  />
+
+                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur text-white text-[11px]">
+                    {facingMode === "user" ? "Front Camera" : "Back Camera"}
+                  </div>
+
+                  {hasMultipleCameras && (
+                    <button
+                      type="button"
+                      onClick={switchCamera}
+                      title={
+                        facingMode === "user"
+                          ? "Switch to back camera"
+                          : "Switch to front camera"
+                      }
+                      className="absolute top-3 right-3 w-11 h-11 rounded-full bg-black/60 hover:bg-black/75 border border-white/30 backdrop-blur text-white text-xl flex items-center justify-center transition-colors"
+                    >
+                      🔄
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
