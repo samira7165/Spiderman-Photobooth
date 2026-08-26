@@ -95,13 +95,23 @@ export default function Home() {
 
   // Only relevant on the device the booth actually runs on (phone/tablet) —
   // desktops with a single (or no) webcam just never see the switch button.
+  // Checked again after a successful getUserMedia() below — Safari on iOS
+  // often under-reports (or fully hides) camera devices from
+  // enumerateDevices() until the origin has actually been granted camera
+  // permission at least once, so a pre-permission check alone can wrongly
+  // conclude there's only one camera on a phone that actually has two.
+  async function checkMultipleCameras() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter((d) => d.kind === "videoinput");
+      setHasMultipleCameras(videoInputs.length > 1);
+    } catch {
+      // leave hasMultipleCameras as-is
+    }
+  }
+
   useEffect(() => {
-    navigator.mediaDevices?.enumerateDevices?.()
-      .then((devices) => {
-        const videoInputs = devices.filter((d) => d.kind === "videoinput");
-        setHasMultipleCameras(videoInputs.length > 1);
-      })
-      .catch(() => {});
+    checkMultipleCameras();
   }, []);
 
   async function startCamera(facing = facingMode) {
@@ -134,6 +144,7 @@ export default function Home() {
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       setFacingMode(facing);
+      checkMultipleCameras();
     } catch (err) {
       console.error("Camera error:", err);
       setCameraError(
